@@ -56,6 +56,10 @@ type ListCategory struct {
 
 // Freeform section for any unstructured content
 type FreeformContent struct {
-	Title   string
-	Content []string // again array of multiple misc things
+	Entries []FreeformEntry
+}
+
+type FreeformEntry struct {
+	Heading string
+	Content []string
 }

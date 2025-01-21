@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"resumeparser/internal/extractor"
+	"resumeparser/internal/parser"
 	"strings"
 	"time"
 )
@@ -12,6 +14,7 @@ import (
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Fprintf(os.Stderr, "Error: Please provide a PDF file path\n")
+		fmt.Fprintf(os.Stderr, "Usage: %s <pdf-file>\n", os.Args[0])
 		os.Exit(1)
 	}
 
@@ -23,6 +26,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Create context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -34,5 +38,29 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Println(text)
+	// Add debug logging
+	fmt.Fprintf(os.Stderr, "Reading PDF: %s\n", os.Args[1])
+
+	fmt.Fprintf(os.Stderr, "Extracted text length: %d\n", len(text))
+	if len(text) > 100 {
+		fmt.Fprintf(os.Stderr, "First 100 chars: %q\n", text[:100])
+	}
+
+	// Create and configure parser
+	p := parser.NewParser()
+
+	// Parse the resume
+	resume, err := p.Parse(text)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error parsing resume: %v\n", err)
+		os.Exit(1)
+	}
+
+	// For now, just output as JSON
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(resume); err != nil {
+		fmt.Fprintf(os.Stderr, "Error encoding result: %v\n", err)
+		os.Exit(1)
+	}
 }
