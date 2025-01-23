@@ -1,42 +1,75 @@
 package extractor
 
 import (
+	"bytes"
 	"context"
 	"fmt"
-	"strings"
+	"os"
 
-	"github.com/dslipak/pdf"
+	_ "embed"
+	"io/ioutil"
+	"os/exec"
 )
 
 type PdfExtractor interface {
 	Extract(ctx context.Context, path string) (string, error)
 }
 
-type pdfExtractor struct{}
+type pdfExtractor struct {
+	jarPath string
+}
 
 func New() PdfExtractor {
-	return &pdfExtractor{}
+	// Look for PDFBox JAR in standard locations
+	jarPath := "assets/pdfbox-app-3.0.3.jar"
+	if _, err := os.Stat(jarPath); os.IsNotExist(err) {
+		// Try alternate location
+		jarPath = "internal/extractor/assets/pdfbox-app-3.0.3.jar"
+	}
+	return &pdfExtractor{
+		jarPath: jarPath,
+	}
 }
 
 func (e *pdfExtractor) Extract(ctx context.Context, path string) (string, error) {
-	f, err := pdf.Open(path)
+	// Create a temporary output file for text extraction
+	outputFile, err := os.CreateTemp("", "pdf-extract-*.txt")
 	if err != nil {
-		return "", fmt.Errorf("failed to open PDF: %w", err)
+		return "", fmt.Errorf("failed to create temp output file: %w", err)
+	}
+	defer os.Remove(outputFile.Name())
+	outputFile.Close()
+
+	// Prepare the Java command to extract text with comprehensive options
+	cmd := exec.CommandContext(ctx,
+		"java",
+		"-jar", e.jarPath,
+		"export:text",
+		"-i="+path,
+		"-o="+outputFile.Name(),
+		"-encoding=UTF-8",
+		"-sort",
+		"-startPage=1",
+	)
+
+	// Capture potential error output
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	// Run the command with verbose logging
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("PDF extraction failed: %w\nDetailed error: %s\nCommand details: %v",
+			err,
+			stderr.String(),
+			cmd.Args,
+		)
 	}
 
-	var text strings.Builder
-	for i := 1; i <= f.NumPage(); i++ {
-		select {
-		case <-ctx.Done():
-			return "", ctx.Err()
-		default:
-			p := f.Page(i)
-			content, err := p.GetPlainText(nil)
-			if err != nil {
-				return "", fmt.Errorf("failed to extract page %d: %w", i, err)
-			}
-			text.WriteString(content)
-		}
+	// Read the extracted text
+	textBytes, err := ioutil.ReadFile(outputFile.Name())
+	if err != nil {
+		return "", fmt.Errorf("failed to read extracted text: %w", err)
 	}
-	return text.String(), nil
+
+	return string(textBytes), nil
 }
