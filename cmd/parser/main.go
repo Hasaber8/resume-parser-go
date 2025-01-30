@@ -155,20 +155,24 @@ func outputText(resume *models.Resume) {
 		if educationContent, ok := education.Content.(*models.TimelineContent); ok {
 			fmt.Println("Education:")
 			for _, entry := range educationContent.Entries {
-				fmt.Printf("  %s", entry.Organization)
+				// Print organization with location
+				fmt.Printf("  • %s", entry.Organization)
 				if entry.Location != "" {
 					fmt.Printf(", %s", entry.Location)
 				}
 				fmt.Println()
 
-				if entry.Title != "" {
-					fmt.Printf("  %s\n", entry.Title)
-				}
+				// Print duration and title/degree with dashes and more indent
 				if entry.StartDate != "" || entry.EndDate != "" {
-					fmt.Printf("  %s - %s\n", entry.StartDate, entry.EndDate)
+					fmt.Printf("          - %s – %s\n", entry.StartDate, entry.EndDate)
 				}
+				if entry.Title != "" {
+					fmt.Printf("          - %s\n", entry.Title)
+				}
+
+				// Print additional details with same indent level
 				for _, detail := range entry.Details {
-					fmt.Printf("    • %s\n", detail)
+					fmt.Printf("          - %s\n", detail)
 				}
 				fmt.Println()
 			}
